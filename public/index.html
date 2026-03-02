@@ -10,6 +10,7 @@
         .avatar-float { animation: float 3s ease-in-out infinite; }
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
         .imposter-gradient { background: linear-gradient(135deg, #f43f5e 0%, #881337 100%); }
+        .gold-gradient { background: linear-gradient(135deg, #fbbf24 0%, #b45309 100%); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
@@ -18,7 +19,7 @@
         <div v-if="myRole" class="w-full md:w-64 bg-slate-900 p-6 border-r border-slate-800 shrink-0">
             <h2 class="text-rose-500 font-black text-xl mb-6 tracking-tighter italic">SCOREBOARD</h2>
             <div class="space-y-4">
-                <div v-for="p in players" :key="p.id" class="flex items-center gap-3 p-2 rounded-lg transition-all" :class="p.id === socketId ? 'bg-slate-800 ring-1 ring-rose-500' : ''">
+                <div v-for="p in sortedPlayers" :key="p.id" class="flex items-center gap-3 p-2 rounded-lg transition-all" :class="p.id === socketId ? 'bg-slate-800 ring-1 ring-rose-500' : ''">
                     <span class="text-2xl">{{ p.avatar }}</span>
                     <div class="flex-1">
                         <p class="text-sm font-bold truncate">{{ p.name }}</p>
@@ -78,21 +79,31 @@
             </div>
 
             <div v-if="phase === 'answering' && !amIHost" class="w-full max-w-md text-center space-y-6">
-                <div class="avatar-float text-6xl mb-4">{{ selectedAvatar }}</div>
-                <h3 class="text-slate-400 uppercase text-sm tracking-widest font-bold">Your Secret Question:</h3>
-                <p class="text-2xl font-bold bg-white/5 p-6 rounded-2xl border border-white/10">{{ myQuestion }}</p>
-                <input v-model="myAnswer" placeholder="Your Answer..." class="w-full p-4 bg-slate-800 rounded-xl border border-slate-700 outline-none">
-                <button @click="submitAnswer" class="w-full imposter-gradient p-4 rounded-xl font-bold">SUBMIT ANSWER</button>
+                <div v-if="!hasSubmittedAnswer">
+                    <div class="avatar-float text-6xl mb-4">{{ selectedAvatar }}</div>
+                    <h3 class="text-slate-400 uppercase text-sm tracking-widest font-bold">Your Secret Question:</h3>
+                    <p class="text-2xl font-bold bg-white/5 p-6 rounded-2xl border border-white/10 my-4">{{ myQuestion }}</p>
+                    <input v-model="myAnswer" placeholder="Your Answer..." class="w-full p-4 bg-slate-800 rounded-xl border border-slate-700 outline-none mb-4">
+                    <button @click="submitAnswer" class="w-full imposter-gradient p-4 rounded-xl font-bold">SUBMIT ANSWER</button>
+                </div>
+                <div v-else class="glass p-8 rounded-3xl">
+                    <p class="text-green-400 font-bold text-2xl animate-pulse">Answer Submitted!</p>
+                    <p class="text-slate-400 mt-2">Waiting for other players...</p>
+                </div>
+            </div>
+            
+            <div v-if="phase === 'answering' && amIHost" class="text-center">
+                <h2 class="text-2xl font-bold animate-pulse text-slate-400">Players are answering...</h2>
             </div>
 
-            <div v-if="phase === 'discussion' || phase === 'voting'" class="w-full max-w-2xl space-y-6">
+            <div v-if="phase === 'voting'" class="w-full max-w-2xl space-y-6">
                 <div class="text-center mb-8">
                     <h3 class="text-rose-500 uppercase text-xs font-black tracking-widest">The Question:</h3>
                     <p class="text-3xl font-bold">{{ revealData.question }}</p>
                 </div>
 
                 <div class="grid gap-3">
-                    <div v-for="p in players" :key="p.id" class="glass p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between transition-all" :class="myPlayerInfo?.voteTarget === p.id ? 'border-rose-500' : 'border-transparent'">
+                    <div v-for="p in players" :key="p.id" class="glass p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between transition-all" :class="myPlayerInfo?.voteTarget === p.id ? 'border-rose-500 bg-rose-900/20' : 'border-transparent'">
                         
                         <div class="flex items-center gap-4 w-full md:w-auto mb-4 md:mb-0">
                             <span class="text-3xl">{{ p.avatar }}</span>
@@ -102,54 +113,75 @@
                             </div>
                         </div>
 
-                        <div v-if="phase === 'voting'" class="flex items-center gap-4">
-                            <div class="flex -space-x-2 mr-4" v-if="getVotersFor(p.id).length > 0">
-                                <div v-for="v in getVotersFor(p.id)" :key="v.id" class="w-8 h-8 flex items-center justify-center rounded-full text-sm bg-slate-800 border" :class="v.voteLocked ? 'border-green-500 z-10' : 'border-slate-500 opacity-50'">
+                        <div class="flex items-center gap-4">
+                            <div class="flex -space-x-2 mr-2" v-if="getVotersFor(p.id).length > 0">
+                                <div v-for="v in getVotersFor(p.id)" :key="v.id" class="w-8 h-8 flex items-center justify-center rounded-full text-sm bg-slate-800 border border-slate-500">
                                     {{ v.avatar }}
                                 </div>
                             </div>
 
-                            <button v-if="!amIHost && p.id !== socketId && !myPlayerInfo?.voteLocked" 
+                            <button v-if="!amIHost && p.id !== socketId" 
                                     @click="selectVote(p.id)" 
                                     class="px-4 py-2 rounded-lg font-bold transition-all border"
                                     :class="myPlayerInfo?.voteTarget === p.id ? 'bg-rose-600 border-rose-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'">
-                                Select
+                                {{ myPlayerInfo?.voteTarget === p.id ? 'VOTED' : 'VOTE' }}
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <div class="text-center mt-8 bg-slate-900 p-6 rounded-2xl border border-slate-800">
-                    <button v-if="amIHost && phase === 'discussion'" @click="startVote" class="bg-white text-black px-12 py-4 rounded-full font-black hover:scale-105 transition-all">START VOTING PHASE</button>
-                    
-                    <div v-if="!amIHost && phase === 'voting'">
-                        <button v-if="!myPlayerInfo?.voteLocked" @click="lockInVote" :disabled="!myPlayerInfo?.voteTarget" 
-                                class="px-12 py-4 rounded-full font-black text-lg transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                                :class="myPlayerInfo?.voteTarget ? 'imposter-gradient hover:scale-105' : 'bg-slate-800 text-slate-500'">
-                            LOCK IN VOTE
-                        </button>
-                        <p v-else class="text-green-500 font-bold text-xl animate-pulse">VOTE LOCKED! Waiting for others...</p>
-                    </div>
-
-                    <div v-if="amIHost && phase === 'voting'">
-                        <p class="text-slate-400 mb-4 text-sm font-bold uppercase">Players are voting...</p>
-                        <button @click="endVotingPhase" class="bg-rose-600 px-12 py-4 rounded-full font-black hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/50">
-                            END VOTING & REVEAL
-                        </button>
-                    </div>
+                <div v-if="amIHost" class="text-center mt-8 bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                    <button @click="endVotingPhase" class="bg-rose-600 px-12 py-4 rounded-full font-black hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/50">
+                        END VOTING PHASE
+                    </button>
                 </div>
             </div>
 
-            <div v-if="phase === 'results'" class="text-center space-y-8">
-                <h2 class="text-5xl font-black italic">THE IMPOSTER WAS...</h2>
-                <div class="text-8xl avatar-float">{{ results.imposterAvatar }}</div>
-                <h3 class="text-4xl font-bold text-rose-500">{{ results.imposterName }}</h3>
-                <div class="glass p-6 rounded-2xl inline-block">
-                    <p class="text-xs text-slate-500 uppercase">They were answering:</p>
-                    <p class="text-xl italic">"{{ results.fakeQuestion }}"</p>
+            <div v-if="phase === 'results'" class="w-full max-w-2xl text-center space-y-12">
+                
+                <div class="glass p-8 rounded-3xl border-rose-500/50 border">
+                    <h3 class="text-slate-400 uppercase text-sm tracking-widest font-bold mb-2">The Group Voted For...</h3>
+                    <p v-if="results.votedOutId" class="text-5xl font-black text-rose-500">{{ getPlayerName(results.votedOutId) }}</p>
+                    <p v-else class="text-4xl font-black text-slate-500">NOBODY (It was a tie!)</p>
                 </div>
-                <div v-if="amIHost" class="mt-8">
-                    <button @click="nextRound" class="imposter-gradient px-12 py-4 rounded-full font-black text-xl hover:scale-105 transition-all">NEXT ROUND</button>
+
+                <div class="space-y-4 animate-in slide-in-from-bottom-8 fade-in duration-1000 delay-500">
+                    <h3 class="text-xl font-bold italic">The REAL Imposter was...</h3>
+                    <div class="text-8xl avatar-float">{{ results.imposterAvatar }}</div>
+                    <h2 class="text-6xl font-black text-white">{{ results.imposterName }}</h2>
+                    <div class="bg-slate-900 p-4 rounded-xl inline-block mt-4 border border-slate-800">
+                        <p class="text-xs text-slate-500 uppercase">They were answering:</p>
+                        <p class="text-xl italic text-slate-300">"{{ results.fakeQuestion }}"</p>
+                    </div>
+                </div>
+
+                <div v-if="amIHost" class="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+                    <button @click="nextRound" class="imposter-gradient px-8 py-4 rounded-xl font-black text-xl hover:scale-105 transition-all">NEXT ROUND</button>
+                    <button @click="endGame" class="bg-slate-800 px-8 py-4 rounded-xl font-bold text-slate-300 hover:bg-slate-700 border border-slate-700">END GAME</button>
+                </div>
+            </div>
+
+            <div v-if="phase === 'final_scoreboard'" class="w-full max-w-md text-center space-y-8">
+                <h1 class="text-5xl font-black text-rose-500 italic">GAME OVER</h1>
+                
+                <div class="glass p-8 rounded-3xl space-y-6">
+                    <div class="gold-gradient p-6 rounded-2xl shadow-xl border border-yellow-500/50">
+                        <p class="text-yellow-200 font-bold text-sm tracking-widest uppercase mb-2">WINNER</p>
+                        <div class="text-5xl mb-2">{{ sortedPlayers[0]?.avatar }}</div>
+                        <p class="text-3xl font-black">{{ sortedPlayers[0]?.name }}</p>
+                        <p class="text-xl font-bold">{{ sortedPlayers[0]?.points }} PTS</p>
+                    </div>
+
+                    <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                        <p class="text-slate-400 font-bold text-sm tracking-widest uppercase mb-2">LAST PLACE</p>
+                        <div class="text-3xl opacity-50">{{ sortedPlayers[sortedPlayers.length - 1]?.avatar }}</div>
+                        <p class="text-xl font-bold text-slate-400">{{ sortedPlayers[sortedPlayers.length - 1]?.name }}</p>
+                        <p class="text-sm text-slate-500">{{ sortedPlayers[sortedPlayers.length - 1]?.points }} PTS</p>
+                    </div>
+                </div>
+
+                <div v-if="amIHost">
+                    <button @click="resetLobby" class="w-full bg-slate-800 py-4 rounded-xl font-bold text-slate-300 hover:bg-slate-700 border border-slate-700">BACK TO LOBBY</button>
                 </div>
             </div>
 
@@ -177,13 +209,23 @@
                 const results = ref({});
                 const socketId = ref('');
                 const hasJoined = ref(false);
+                const hasSubmittedAnswer = ref(false);
 
                 const amIHost = computed(() => myRole.value === 'host');
                 const myPlayerInfo = computed(() => players.value.find(p => p.id === socketId.value));
+                
+                // Keep scoreboard sorted by points highest to lowest
+                const sortedPlayers = computed(() => {
+                    return [...players.value].sort((a, b) => b.points - a.points);
+                });
 
-                // Helper to show who is voting for a specific person
                 const getVotersFor = (targetId) => {
                     return players.value.filter(p => p.voteTarget === targetId);
+                };
+
+                const getPlayerName = (id) => {
+                    const p = players.value.find(p => p.id === id);
+                    return p ? p.name : null;
                 };
 
                 socket.on('connect', () => socketId.value = socket.id);
@@ -194,22 +236,27 @@
                 socket.on('update_game', (data) => {
                     players.value = data.players;
                     host.value = data.host;
-                    phase.value = data.phase;
+                    if (!hasJoined.value && data.host) {
+                        // Just a safety sync for UI
+                        host.value = data.host; 
+                    }
                 });
                 socket.on('phase_changed', (p) => phase.value = p);
                 socket.on('receive_question', (q) => {
                     myQuestion.value = q;
-                    myAnswer.value = ''; // Reset answer box
+                    myAnswer.value = ''; 
+                    hasSubmittedAnswer.value = false;
                     phase.value = 'answering';
                 });
                 socket.on('reveal_answers', (data) => {
                     revealData.value = data;
                     players.value = data.players;
-                    phase.value = 'discussion';
+                    phase.value = 'voting';
                 });
                 socket.on('results', (data) => {
                     const imp = data.players.find(p => p.id === data.imposterId);
                     results.value = { 
+                        votedOutId: data.votedOutId,
                         imposterName: imp.name, 
                         imposterAvatar: imp.avatar, 
                         fakeQuestion: data.fakeQuestion 
@@ -219,19 +266,24 @@
                 });
 
                 return {
-                    name, selectedAvatar, avatars, phase, players, host, myRole, amIHost, myPlayerInfo, myQuestion, myAnswer, qReal, qFake, revealData, results, socketId, hasJoined, getVotersFor,
+                    name, selectedAvatar, avatars, phase, players, sortedPlayers, host, myRole, amIHost, myPlayerInfo, myQuestion, myAnswer, qReal, qFake, revealData, results, socketId, hasJoined, hasSubmittedAnswer, getVotersFor, getPlayerName,
                     join: () => socket.emit('join_game', { name: name.value, avatar: selectedAvatar.value }),
                     startInput: () => socket.emit('start_input_phase'),
                     sendQuestions: () => {
                         socket.emit('send_questions', { real: qReal.value, fake: qFake.value });
-                        qReal.value = ''; qFake.value = ''; // Reset host inputs
+                        qReal.value = ''; qFake.value = '';
                     },
-                    submitAnswer: () => socket.emit('submit_answer', myAnswer.value),
-                    startVote: () => socket.emit('start_voting'),
+                    submitAnswer: () => {
+                        if(myAnswer.value.trim() !== '') {
+                            socket.emit('submit_answer', myAnswer.value);
+                            hasSubmittedAnswer.value = true;
+                        }
+                    },
                     selectVote: (targetId) => socket.emit('update_vote', targetId),
-                    lockInVote: () => socket.emit('lock_vote'),
                     endVotingPhase: () => socket.emit('end_voting_phase'),
-                    nextRound: () => socket.emit('next_round')
+                    nextRound: () => socket.emit('next_round'),
+                    endGame: () => socket.emit('end_game'),
+                    resetLobby: () => socket.emit('reset_lobby')
                 }
             }
         }).mount('#app');

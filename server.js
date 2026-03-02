@@ -21,6 +21,10 @@ let gameState = {
 
 io.on('connection', (socket) => {
     socket.on('join_game', (data) => {
+        // Prevent duplicate joins from the same socket (Fixes the cloning bug)
+        if (gameState.host && gameState.host.id === socket.id) return;
+        if (gameState.players.find(p => p.id === socket.id)) return;
+
         if (!gameState.host) {
             gameState.host = { id: socket.id, name: data.name, isHost: true };
             socket.emit('role_assigned', 'host');
@@ -36,6 +40,12 @@ io.on('connection', (socket) => {
             socket.emit('role_assigned', 'player');
         }
         io.emit('update_game', gameState);
+    });
+
+    // Add this right below to handle the Host starting the game from the new lobby
+    socket.on('start_input_phase', () => {
+        gameState.phase = 'input';
+        io.emit('phase_changed', 'input');
     });
 
     socket.on('send_questions', (data) => {
@@ -94,5 +104,6 @@ io.on('connection', (socket) => {
         io.emit('update_game', gameState);
     });
 });
+
 
 server.listen(process.env.PORT || 3000);

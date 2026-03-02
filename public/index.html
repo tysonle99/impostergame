@@ -37,15 +37,13 @@
                 <h1 class="text-6xl font-black text-rose-500 animate-pulse tracking-tighter">IMPOSTER</h1>
                 
                 <div v-if="!hasJoined" class="glass p-8 rounded-3xl shadow-2xl space-y-6">
-                    <input v-model="name" placeholder="Enter Nickname" class="w-full p-4 bg-slate-800 rounded-xl border border-slate-700 focus:border-rose-500 focus:outline-none transition-all">
+                    <input v-model="name" placeholder="Enter Nickname" class="w-full p-4 bg-slate-800 rounded-xl border border-slate-700 focus:border-rose-500 outline-none transition-all">
                     
                     <p class="text-sm font-bold text-slate-400 uppercase">Pick an Avatar</p>
                     <div class="grid grid-cols-5 gap-2">
                         <button v-for="a in avatars" @click="selectedAvatar = a" 
                                 :class="selectedAvatar === a ? 'bg-rose-600 scale-110' : 'bg-slate-800 hover:bg-slate-700'"
-                                class="text-2xl p-2 rounded-lg transition-all">
-                            {{ a }}
-                        </button>
+                                class="text-2xl p-2 rounded-lg transition-all">{{ a }}</button>
                     </div>
 
                     <button @click="join" class="w-full imposter-gradient p-4 rounded-xl font-black text-lg shadow-lg hover:brightness-110 transition-all">
@@ -55,31 +53,22 @@
 
                 <div v-else class="glass p-8 rounded-3xl shadow-2xl space-y-6 animate-in fade-in zoom-in duration-300">
                     <h2 class="text-3xl font-bold">Waiting Lobby</h2>
-                    
                     <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                         <p class="text-sm text-slate-400 mb-2 uppercase font-bold">Players Joined:</p>
                         <div class="flex flex-wrap justify-center gap-2">
                             <span v-for="p in players" :key="p.id" class="bg-slate-900 px-3 py-1 rounded-full text-sm border border-slate-600">
                                 {{ p.avatar }} {{ p.name }}
                             </span>
-                            <span v-if="players.length === 0" class="text-slate-500 italic text-sm">No players yet...</span>
                         </div>
                     </div>
-
                     <div v-if="amIHost">
-                        <p v-if="players.length < 3" class="text-rose-400 text-sm mb-4 font-bold">Need at least 3 players to start.</p>
-                        <button @click="startInput" :disabled="players.length < 3" 
-                                class="w-full imposter-gradient p-4 rounded-xl font-black text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                            START GAME
-                        </button>
+                        <button @click="startInput" :disabled="players.length < 3" class="w-full imposter-gradient p-4 rounded-xl font-black shadow-lg disabled:opacity-50 transition-all">START GAME</button>
                     </div>
-                    <div v-else>
-                        <p class="text-rose-400 animate-pulse font-bold">Waiting for host to start...</p>
-                    </div>
+                    <div v-else><p class="text-rose-400 animate-pulse font-bold">Waiting for host to start...</p></div>
                 </div>
             </div>
 
-            <div v-if="phase === 'input' && amIHost" class="w-full max-w-lg space-y-6 animate-in fade-in duration-500">
+            <div v-if="phase === 'input' && amIHost" class="w-full max-w-lg space-y-6">
                 <h2 class="text-3xl font-bold text-center">Set the Questions</h2>
                 <div class="glass p-6 rounded-2xl space-y-4">
                     <textarea v-model="qReal" placeholder="The Question for everyone..." class="w-full p-4 bg-slate-800 rounded-xl h-24 border border-slate-700"></textarea>
@@ -92,7 +81,7 @@
                 <div class="avatar-float text-6xl mb-4">{{ selectedAvatar }}</div>
                 <h3 class="text-slate-400 uppercase text-sm tracking-widest font-bold">Your Secret Question:</h3>
                 <p class="text-2xl font-bold bg-white/5 p-6 rounded-2xl border border-white/10">{{ myQuestion }}</p>
-                <input v-model="myAnswer" placeholder="Your Answer..." class="w-full p-4 bg-slate-800 rounded-xl border border-slate-700 focus:border-rose-500 outline-none">
+                <input v-model="myAnswer" placeholder="Your Answer..." class="w-full p-4 bg-slate-800 rounded-xl border border-slate-700 outline-none">
                 <button @click="submitAnswer" class="w-full imposter-gradient p-4 rounded-xl font-bold">SUBMIT ANSWER</button>
             </div>
 
@@ -103,22 +92,51 @@
                 </div>
 
                 <div class="grid gap-3">
-                    <div v-for="p in players" :key="p.id" class="glass p-4 rounded-2xl flex items-center justify-between group hover:border-rose-500 transition-all">
-                        <div class="flex items-center gap-4">
+                    <div v-for="p in players" :key="p.id" class="glass p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between transition-all" :class="myPlayerInfo?.voteTarget === p.id ? 'border-rose-500' : 'border-transparent'">
+                        
+                        <div class="flex items-center gap-4 w-full md:w-auto mb-4 md:mb-0">
                             <span class="text-3xl">{{ p.avatar }}</span>
                             <div>
                                 <p class="text-xs text-slate-500 uppercase font-bold">{{ p.name }}</p>
                                 <p class="text-xl font-medium">{{ p.answer }}</p>
                             </div>
                         </div>
-                        <button v-if="phase === 'voting' && !amIHost && p.id !== socketId" 
-                                @click="vote(p.id)" class="bg-rose-600 px-4 py-2 rounded-lg font-bold hover:bg-rose-500 transition-colors">VOTE</button>
-                        <button v-if="amIHost && phase === 'voting'" @click="endRound(p.id)" class="bg-blue-600 px-4 py-2 rounded-lg font-bold">VOTE OUT</button>
+
+                        <div v-if="phase === 'voting'" class="flex items-center gap-4">
+                            <div class="flex -space-x-2 mr-4" v-if="getVotersFor(p.id).length > 0">
+                                <div v-for="v in getVotersFor(p.id)" :key="v.id" class="w-8 h-8 flex items-center justify-center rounded-full text-sm bg-slate-800 border" :class="v.voteLocked ? 'border-green-500 z-10' : 'border-slate-500 opacity-50'">
+                                    {{ v.avatar }}
+                                </div>
+                            </div>
+
+                            <button v-if="!amIHost && p.id !== socketId && !myPlayerInfo?.voteLocked" 
+                                    @click="selectVote(p.id)" 
+                                    class="px-4 py-2 rounded-lg font-bold transition-all border"
+                                    :class="myPlayerInfo?.voteTarget === p.id ? 'bg-rose-600 border-rose-400' : 'bg-slate-800 border-slate-600 hover:bg-slate-700'">
+                                Select
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div v-if="amIHost && phase === 'discussion'" class="text-center mt-8">
-                    <button @click="startVote" class="bg-white text-black px-12 py-4 rounded-full font-black hover:scale-105 transition-all">START VOTING PHASE</button>
+                <div class="text-center mt-8 bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                    <button v-if="amIHost && phase === 'discussion'" @click="startVote" class="bg-white text-black px-12 py-4 rounded-full font-black hover:scale-105 transition-all">START VOTING PHASE</button>
+                    
+                    <div v-if="!amIHost && phase === 'voting'">
+                        <button v-if="!myPlayerInfo?.voteLocked" @click="lockInVote" :disabled="!myPlayerInfo?.voteTarget" 
+                                class="px-12 py-4 rounded-full font-black text-lg transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                :class="myPlayerInfo?.voteTarget ? 'imposter-gradient hover:scale-105' : 'bg-slate-800 text-slate-500'">
+                            LOCK IN VOTE
+                        </button>
+                        <p v-else class="text-green-500 font-bold text-xl animate-pulse">VOTE LOCKED! Waiting for others...</p>
+                    </div>
+
+                    <div v-if="amIHost && phase === 'voting'">
+                        <p class="text-slate-400 mb-4 text-sm font-bold uppercase">Players are voting...</p>
+                        <button @click="endVotingPhase" class="bg-rose-600 px-12 py-4 rounded-full font-black hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/50">
+                            END VOTING & REVEAL
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -131,7 +149,7 @@
                     <p class="text-xl italic">"{{ results.fakeQuestion }}"</p>
                 </div>
                 <div v-if="amIHost" class="mt-8">
-                    <button @click="nextRound" class="imposter-gradient px-12 py-4 rounded-full font-black text-xl">NEXT ROUND</button>
+                    <button @click="nextRound" class="imposter-gradient px-12 py-4 rounded-full font-black text-xl hover:scale-105 transition-all">NEXT ROUND</button>
                 </div>
             </div>
 
@@ -158,17 +176,21 @@
                 const revealData = ref({});
                 const results = ref({});
                 const socketId = ref('');
-                const hasJoined = ref(false); // Added for the lobby logic
+                const hasJoined = ref(false);
 
                 const amIHost = computed(() => myRole.value === 'host');
+                const myPlayerInfo = computed(() => players.value.find(p => p.id === socketId.value));
+
+                // Helper to show who is voting for a specific person
+                const getVotersFor = (targetId) => {
+                    return players.value.filter(p => p.voteTarget === targetId);
+                };
 
                 socket.on('connect', () => socketId.value = socket.id);
-                
                 socket.on('role_assigned', (role) => {
                     myRole.value = role;
-                    hasJoined.value = true; // Hides the form, shows the lobby!
+                    hasJoined.value = true;
                 });
-                
                 socket.on('update_game', (data) => {
                     players.value = data.players;
                     host.value = data.host;
@@ -177,6 +199,7 @@
                 socket.on('phase_changed', (p) => phase.value = p);
                 socket.on('receive_question', (q) => {
                     myQuestion.value = q;
+                    myAnswer.value = ''; // Reset answer box
                     phase.value = 'answering';
                 });
                 socket.on('reveal_answers', (data) => {
@@ -196,14 +219,18 @@
                 });
 
                 return {
-                    name, selectedAvatar, avatars, phase, players, host, myRole, amIHost, myQuestion, myAnswer, qReal, qFake, revealData, results, socketId, hasJoined,
+                    name, selectedAvatar, avatars, phase, players, host, myRole, amIHost, myPlayerInfo, myQuestion, myAnswer, qReal, qFake, revealData, results, socketId, hasJoined, getVotersFor,
                     join: () => socket.emit('join_game', { name: name.value, avatar: selectedAvatar.value }),
-                    startInput: () => socket.emit('start_input_phase'), // New function to start the game
-                    sendQuestions: () => socket.emit('send_questions', { real: qReal.value, fake: qFake.value }),
+                    startInput: () => socket.emit('start_input_phase'),
+                    sendQuestions: () => {
+                        socket.emit('send_questions', { real: qReal.value, fake: qFake.value });
+                        qReal.value = ''; qFake.value = ''; // Reset host inputs
+                    },
                     submitAnswer: () => socket.emit('submit_answer', myAnswer.value),
                     startVote: () => socket.emit('start_voting'),
-                    vote: (id) => {}, // Logic for player sync voting can be added, currently Host ends it
-                    endRound: (id) => socket.emit('end_round', id),
+                    selectVote: (targetId) => socket.emit('update_vote', targetId),
+                    lockInVote: () => socket.emit('lock_vote'),
+                    endVotingPhase: () => socket.emit('end_voting_phase'),
                     nextRound: () => socket.emit('next_round')
                 }
             }

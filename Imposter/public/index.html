@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>IMPOSTER ONLINE</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white p-6">
+    <div id="app" class="max-w-md mx-auto">
+        <h1 class="text-3xl font-black text-rose-500 text-center mb-8">IMPOSTER</h1>
+
+        <div v-if="phase === 'lobby'" class="space-y-4">
+            <input v-model="name" placeholder="Enter Name" class="w-full p-3 bg-slate-800 rounded">
+            <button @click="join" class="w-full bg-rose-600 p-3 rounded font-bold">JOIN GAME</button>
+            <div class="mt-4">
+                <p>Players: {{ players.length }}</p>
+                <li v-for="p in players" class="list-none text-slate-400">{{ p.name }} <span v-if="p.isHost">(Host)</span></li>
+            </div>
+            <button v-if="amIHost && players.length >= 3" @click="startInput" class="w-full bg-green-600 p-3 rounded mt-4">START ROUND</button>
+        </div>
+
+        <div v-if="phase === 'input' && amIHost" class="space-y-4">
+            <textarea v-model="qReal" placeholder="Real Question" class="w-full p-3 bg-slate-800 rounded"></textarea>
+            <textarea v-model="qFake" placeholder="Fake Question" class="w-full p-3 bg-slate-800 rounded border border-rose-500"></textarea>
+            <button @click="sendQuestions" class="w-full bg-rose-600 p-3 rounded">SEND TO PLAYERS</button>
+        </div>
+
+        <div v-if="phase === 'answering'" class="text-center">
+            <p class="text-sm text-slate-400 uppercase">Your Question:</p>
+            <p class="text-xl font-bold my-4">{{ myQuestion }}</p>
+            <input v-model="myAnswer" placeholder="Your Answer" class="w-full p-3 bg-slate-800 rounded mb-4">
+            <button @click="submitAnswer" class="w-full bg-rose-600 p-3 rounded">SUBMIT</button>
+        </div>
+
+        <div v-if="phase === 'discussion' || phase === 'voting'">
+            <div class="bg-blue-900/30 p-4 rounded mb-6 border border-blue-500">
+                <p class="text-xs uppercase text-blue-400">The Real Question:</p>
+                <p class="text-lg font-bold">{{ revealData.question }}</p>
+            </div>
+            <div v-for="p in players" :key="p.id" class="bg-slate-800 p-3 rounded mb-2 flex justify-between">
+                <div>
+                    <p class="text-xs text-slate-500">{{ p.name }}</p>
+                    <p>{{ p.answer }}</p>
+                </div>
+                <button v-if="phase === 'voting'" @click="vote(p.id)" class="text-xs bg-rose-600 px-2 rounded">VOTE</button>
+            </div>
+            <button v-if="amIHost && phase === 'discussion'" @click="startVote" class="w-full bg-white text-black p-3 rounded mt-4">START VOTING</button>
+        </div>
+
+        <div v-if="phase === 'results'" class="text-center">
+            <h2 class="text-2xl font-bold">Imposter: {{ results.imposterName }}</h2>
+            <p class="text-slate-400 my-4 italic">Fake Question was: "{{ results.fakeQuestion }}"</p>
+            <button v-if="amIHost" @click="startInput" class="w-full bg-rose-600 p-3 rounded mt-6">NEXT ROUND</button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const { createApp, ref, computed } = Vue;
+
+        createApp({
+            setup() {
+                const name = ref('');
+                const phase = ref('lobby');
+                const players = ref([]);
+                const myQuestion = ref('');
+                const myAnswer = ref('');
+                const qReal = ref('');
+                const qFake = ref('');
+                const revealData = ref({});
+                const results = ref({});
+
+                const amIHost = computed(() => {
+                    const me = players.value.find(p => p.id === socket.id);
+                    return me ? me.isHost : false;
+                });
+
+                socket.on('update_players', (p) => players.value = p);
+                socket.on('phase_changed', (p) => phase.value = p);
+                socket.on('receive_question', (q) => {
+                    myQuestion.value = q;
+                    phase.value = 'answering';
+                });
+                socket.on('reveal_answers', (data) => {
+                    revealData.value = data;
+                    players.value = data.players;
+                    phase.value = 'discussion';
+                });
+                socket.on('results', (data) => {
+                    results.value = {
+                        imposterName: data.players.find(p => p.id === data.imposterId).name,
+                        fakeQuestion: data.fakeQuestion
+                    };
+                    players.value = data.players;
+                    phase.value = 'results';
+                });
+
+                return {
+                    name, phase, players, amIHost, myQuestion, myAnswer, qReal, qFake, revealData, results,
+                    join: () => socket.emit('join_game', name.value),
+                    startInput: () => socket.emit('start_input_phase'),
+                    sendQuestions: () => socket.emit('send_questions', { real: qReal.value, fake: qFake.value }),
+                    submitAnswer: () => socket.emit('submit_answer', myAnswer.value),
+                    startVote: () => socket.emit('start_voting'),
+                    vote: (id) => socket.emit('end_round', id) // Simplified for prototype
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

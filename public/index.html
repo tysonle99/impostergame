@@ -35,7 +35,8 @@
             
             <div v-if="phase === 'lobby'" class="w-full max-w-md space-y-8 text-center z-10">
                 <h1 class="text-6xl font-black text-rose-500 animate-pulse tracking-tighter">IMPOSTER</h1>
-                <div class="glass p-8 rounded-3xl shadow-2xl space-y-6">
+                
+                <div v-if="!hasJoined" class="glass p-8 rounded-3xl shadow-2xl space-y-6">
                     <input v-model="name" placeholder="Enter Nickname" class="w-full p-4 bg-slate-800 rounded-xl border border-slate-700 focus:border-rose-500 focus:outline-none transition-all">
                     
                     <p class="text-sm font-bold text-slate-400 uppercase">Pick an Avatar</p>
@@ -50,6 +51,31 @@
                     <button @click="join" class="w-full imposter-gradient p-4 rounded-xl font-black text-lg shadow-lg hover:brightness-110 transition-all">
                         {{ host ? 'JOIN AS PLAYER' : 'CREATE AS HOST' }}
                     </button>
+                </div>
+
+                <div v-else class="glass p-8 rounded-3xl shadow-2xl space-y-6 animate-in fade-in zoom-in duration-300">
+                    <h2 class="text-3xl font-bold">Waiting Lobby</h2>
+                    
+                    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <p class="text-sm text-slate-400 mb-2 uppercase font-bold">Players Joined:</p>
+                        <div class="flex flex-wrap justify-center gap-2">
+                            <span v-for="p in players" :key="p.id" class="bg-slate-900 px-3 py-1 rounded-full text-sm border border-slate-600">
+                                {{ p.avatar }} {{ p.name }}
+                            </span>
+                            <span v-if="players.length === 0" class="text-slate-500 italic text-sm">No players yet...</span>
+                        </div>
+                    </div>
+
+                    <div v-if="amIHost">
+                        <p v-if="players.length < 3" class="text-rose-400 text-sm mb-4 font-bold">Need at least 3 players to start.</p>
+                        <button @click="startInput" :disabled="players.length < 3" 
+                                class="w-full imposter-gradient p-4 rounded-xl font-black text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            START GAME
+                        </button>
+                    </div>
+                    <div v-else>
+                        <p class="text-rose-400 animate-pulse font-bold">Waiting for host to start...</p>
+                    </div>
                 </div>
             </div>
 
@@ -132,11 +158,17 @@
                 const revealData = ref({});
                 const results = ref({});
                 const socketId = ref('');
+                const hasJoined = ref(false); // Added for the lobby logic
 
                 const amIHost = computed(() => myRole.value === 'host');
 
                 socket.on('connect', () => socketId.value = socket.id);
-                socket.on('role_assigned', (role) => myRole.value = role);
+                
+                socket.on('role_assigned', (role) => {
+                    myRole.value = role;
+                    hasJoined.value = true; // Hides the form, shows the lobby!
+                });
+                
                 socket.on('update_game', (data) => {
                     players.value = data.players;
                     host.value = data.host;
@@ -164,8 +196,9 @@
                 });
 
                 return {
-                    name, selectedAvatar, avatars, phase, players, host, myRole, amIHost, myQuestion, myAnswer, qReal, qFake, revealData, results, socketId,
+                    name, selectedAvatar, avatars, phase, players, host, myRole, amIHost, myQuestion, myAnswer, qReal, qFake, revealData, results, socketId, hasJoined,
                     join: () => socket.emit('join_game', { name: name.value, avatar: selectedAvatar.value }),
+                    startInput: () => socket.emit('start_input_phase'), // New function to start the game
                     sendQuestions: () => socket.emit('send_questions', { real: qReal.value, fake: qFake.value }),
                     submitAnswer: () => socket.emit('submit_answer', myAnswer.value),
                     startVote: () => socket.emit('start_voting'),
